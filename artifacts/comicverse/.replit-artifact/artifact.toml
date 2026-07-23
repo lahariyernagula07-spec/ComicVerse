@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "ComicVerse"
+version = "1.0.0"
+id = "artifacts/comicverse"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21266
+
+[services.development]
+run = "pnpm --filter @workspace/comicverse run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/comicverse", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/comicverse/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21266"
+BASE_PATH = "/"

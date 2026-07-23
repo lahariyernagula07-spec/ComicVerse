@@ -1,0 +1,2 @@
+- [ComicVerse build decisions](comicverse-build.md) — orval codegen appends to index.ts; post-process step required to avoid duplicate exports.
+- [Clerk routing in Wouter](clerk-wouter.md) — SignIn/SignUp need explicit path prop; proxyUrl only set in production.

@@ -1,0 +1,885 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: ComicVerse API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: characters
+    description: Character management
+  - name: comics
+    description: Comic management
+  - name: panels
+    description: Panel management
+  - name: ai
+    description: AI generation
+  - name: community
+    description: Community feed and social
+  - name: dashboard
+    description: User dashboard stats
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── Characters ──────────────────────────────────────────────────────────────
+  /characters:
+    get:
+      operationId: listCharacters
+      tags: [characters]
+      summary: List current user's characters
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: List of characters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Character"
+    post:
+      operationId: createCharacter
+      tags: [characters]
+      summary: Create a character
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCharacterInput"
+      responses:
+        "201":
+          description: Created character
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Character"
+
+  /characters/{id}:
+    get:
+      operationId: getCharacter
+      tags: [characters]
+      summary: Get a character by ID
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Character
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Character"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateCharacter
+      tags: [characters]
+      summary: Update a character
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCharacterInput"
+      responses:
+        "200":
+          description: Updated character
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Character"
+    delete:
+      operationId: deleteCharacter
+      tags: [characters]
+      summary: Delete a character
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Comics ───────────────────────────────────────────────────────────────────
+  /comics:
+    get:
+      operationId: listComics
+      tags: [comics]
+      summary: List current user's comics
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: List of comics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comic"
+    post:
+      operationId: createComic
+      tags: [comics]
+      summary: Create a comic
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComicInput"
+      responses:
+        "201":
+          description: Created comic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comic"
+
+  /comics/{id}:
+    get:
+      operationId: getComic
+      tags: [comics]
+      summary: Get a comic by ID (with panels)
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Comic with panels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComicWithPanels"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateComic
+      tags: [comics]
+      summary: Update a comic
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateComicInput"
+      responses:
+        "200":
+          description: Updated comic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comic"
+    delete:
+      operationId: deleteComic
+      tags: [comics]
+      summary: Delete a comic
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  /comics/{id}/publish:
+    post:
+      operationId: publishComic
+      tags: [comics]
+      summary: Publish or unpublish a comic
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                published:
+                  type: boolean
+              required: [published]
+      responses:
+        "200":
+          description: Updated comic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comic"
+
+  # ── Panels ───────────────────────────────────────────────────────────────────
+  /comics/{comicId}/panels:
+    get:
+      operationId: listPanels
+      tags: [panels]
+      summary: List panels for a comic
+      security:
+        - clerkAuth: []
+      parameters:
+        - name: comicId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of panels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Panel"
+    post:
+      operationId: createPanel
+      tags: [panels]
+      summary: Create a panel
+      security:
+        - clerkAuth: []
+      parameters:
+        - name: comicId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePanelInput"
+      responses:
+        "201":
+          description: Created panel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Panel"
+
+  /panels/{id}:
+    put:
+      operationId: updatePanel
+      tags: [panels]
+      summary: Update a panel
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePanelInput"
+      responses:
+        "200":
+          description: Updated panel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Panel"
+    delete:
+      operationId: deletePanel
+      tags: [panels]
+      summary: Delete a panel
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # ── AI ───────────────────────────────────────────────────────────────────────
+  /ai/generate-story:
+    post:
+      operationId: generateStory
+      tags: [ai]
+      summary: Generate a story outline from a prompt
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateStoryInput"
+      responses:
+        "200":
+          description: Generated story
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedStory"
+
+  /ai/generate-dialogue:
+    post:
+      operationId: generateDialogue
+      tags: [ai]
+      summary: Generate dialogue for a panel
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateDialogueInput"
+      responses:
+        "200":
+          description: Generated dialogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedDialogue"
+
+  /ai/generate-image:
+    post:
+      operationId: generatePanelImage
+      tags: [ai]
+      summary: Generate an image for a panel
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateImageInput"
+      responses:
+        "200":
+          description: Generated image as base64
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedImage"
+
+  # ── Community ────────────────────────────────────────────────────────────────
+  /community/feed:
+    get:
+      operationId: getCommunityFeed
+      tags: [community]
+      summary: Get published comics feed
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 12
+        - name: style
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Community feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityFeed"
+
+  /community/comics/{id}:
+    get:
+      operationId: getCommunityComic
+      tags: [community]
+      summary: Get a single published comic (public)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Comic with panels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityComicDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /community/comics/{id}/like:
+    post:
+      operationId: toggleLike
+      tags: [community]
+      summary: Toggle like on a published comic
+      security:
+        - clerkAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Like status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeStatus"
+
+  # ── Dashboard ────────────────────────────────────────────────────────────────
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get stats for current user's dashboard
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+components:
+  securitySchemes:
+    clerkAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    # ── Character ──
+    Character:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        personality:
+          type: string
+        visualStyle:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, name, description, personality, visualStyle, createdAt, updatedAt]
+
+    CreateCharacterInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+        personality:
+          type: string
+        visualStyle:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+      required: [name, description, personality, visualStyle]
+
+    # ── Comic ──
+    Comic:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        style:
+          type: string
+        template:
+          type: string
+        published:
+          type: boolean
+        coverImageData:
+          type: string
+          nullable: true
+        likesCount:
+          type: integer
+        userHasLiked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, title, style, template, published, likesCount, userHasLiked, createdAt, updatedAt]
+
+    ComicWithPanels:
+      allOf:
+        - $ref: "#/components/schemas/Comic"
+        - type: object
+          properties:
+            panels:
+              type: array
+              items:
+                $ref: "#/components/schemas/Panel"
+          required: [panels]
+
+    CreateComicInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        style:
+          type: string
+        template:
+          type: string
+      required: [title, style, template]
+
+    UpdateComicInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        style:
+          type: string
+        template:
+          type: string
+        coverImageData:
+          type: string
+          nullable: true
+
+    # ── Panel ──
+    Panel:
+      type: object
+      properties:
+        id:
+          type: integer
+        comicId:
+          type: integer
+        order:
+          type: integer
+        dialogue:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        imageData:
+          type: string
+          nullable: true
+        imagePrompt:
+          type: string
+          nullable: true
+        characterIds:
+          type: array
+          items:
+            type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, comicId, order, characterIds, createdAt, updatedAt]
+
+    CreatePanelInput:
+      type: object
+      properties:
+        order:
+          type: integer
+        dialogue:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        imageData:
+          type: string
+          nullable: true
+        imagePrompt:
+          type: string
+          nullable: true
+        characterIds:
+          type: array
+          items:
+            type: integer
+
+    UpdatePanelInput:
+      type: object
+      properties:
+        order:
+          type: integer
+        dialogue:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        imageData:
+          type: string
+          nullable: true
+        imagePrompt:
+          type: string
+          nullable: true
+        characterIds:
+          type: array
+          items:
+            type: integer
+
+    # ── AI ──
+    GenerateStoryInput:
+      type: object
+      properties:
+        prompt:
+          type: string
+        style:
+          type: string
+        panelCount:
+          type: integer
+          default: 4
+        characterNames:
+          type: array
+          items:
+            type: string
+      required: [prompt, style]
+
+    GeneratedStory:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        panels:
+          type: array
+          items:
+            type: object
+            properties:
+              order:
+                type: integer
+              caption:
+                type: string
+              dialogue:
+                type: string
+              imagePrompt:
+                type: string
+            required: [order, caption, dialogue, imagePrompt]
+      required: [title, description, panels]
+
+    GenerateDialogueInput:
+      type: object
+      properties:
+        panelDescription:
+          type: string
+        characterNames:
+          type: array
+          items:
+            type: string
+        style:
+          type: string
+        context:
+          type: string
+      required: [panelDescription, style]
+
+    GeneratedDialogue:
+      type: object
+      properties:
+        dialogue:
+          type: string
+        caption:
+          type: string
+      required: [dialogue, caption]
+
+    GenerateImageInput:
+      type: object
+      properties:
+        prompt:
+          type: string
+        style:
+          type: string
+        panelDescription:
+          type: string
+      required: [prompt, style]
+
+    GeneratedImage:
+      type: object
+      properties:
+        imageData:
+          type: string
+          description: base64 encoded PNG
+      required: [imageData]
+
+    # ── Community ──
+    CommunityComicSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        style:
+          type: string
+        template:
+          type: string
+        coverImageData:
+          type: string
+          nullable: true
+        likesCount:
+          type: integer
+        userHasLiked:
+          type: boolean
+        authorName:
+          type: string
+        authorId:
+          type: string
+        panelCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, style, template, likesCount, userHasLiked, authorName, authorId, panelCount, createdAt]
+
+    CommunityFeed:
+      type: object
+      properties:
+        comics:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommunityComicSummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required: [comics, total, page, totalPages]
+
+    CommunityComicDetail:
+      allOf:
+        - $ref: "#/components/schemas/CommunityComicSummary"
+        - type: object
+          properties:
+            panels:
+              type: array
+              items:
+                $ref: "#/components/schemas/Panel"
+          required: [panels]
+
+    LikeStatus:
+      type: object
+      properties:
+        liked:
+          type: boolean
+        likesCount:
+          type: integer
+      required: [liked, likesCount]
+
+    # ── Dashboard ──
+    DashboardStats:
+      type: object
+      properties:
+        totalComics:
+          type: integer
+        publishedComics:
+          type: integer
+        totalLikesReceived:
+          type: integer
+        totalCharacters:
+          type: integer
+        recentActivity:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [comic_created, comic_published, like_received]
+              comicId:
+                type: integer
+              comicTitle:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+            required: [type, comicId, comicTitle, timestamp]
+      required: [totalComics, publishedComics, totalLikesReceived, totalCharacters, recentActivity]
