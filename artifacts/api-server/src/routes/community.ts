@@ -67,7 +67,7 @@ router.get("/feed", async (req, res) => {
 });
 
 router.get("/comics/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const auth = getAuth(req);
   const currentUserId = (auth?.sessionClaims as { userId?: string })?.userId ?? auth?.userId ?? null;
 
@@ -96,7 +96,11 @@ router.get("/comics/:id", async (req, res) => {
 
 router.post("/comics/:id/like", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(
+  Array.isArray(req.params.id)
+    ? req.params.id[0]
+    : req.params.id
+);
   const [comic] = await db.select().from(comicsTable).where(and(eq(comicsTable.id, id), eq(comicsTable.published, true)));
   if (!comic) { res.status(404).json({ error: "Not found" }); return; }
 

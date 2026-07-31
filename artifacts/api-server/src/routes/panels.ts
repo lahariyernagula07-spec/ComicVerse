@@ -8,7 +8,11 @@ const router = Router({ mergeParams: true });
 
 router.get("/", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const comicId = parseInt(req.params.comicId);
+  const comicId = parseInt(
+  Array.isArray(req.params.comicId)
+    ? req.params.comicId[0]
+    : req.params.comicId
+);
   // Verify comic ownership
   const [comic] = await db.select().from(comicsTable).where(and(eq(comicsTable.id, comicId), eq(comicsTable.userId, userId)));
   if (!comic) { res.status(404).json({ error: "Comic not found" }); return; }
@@ -18,7 +22,11 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const comicId = parseInt(req.params.comicId);
+  const comicId = parseInt(
+  Array.isArray(req.params.comicId)
+    ? req.params.comicId[0]
+    : req.params.comicId
+);
   const [comic] = await db.select().from(comicsTable).where(and(eq(comicsTable.id, comicId), eq(comicsTable.userId, userId)));
   if (!comic) { res.status(404).json({ error: "Comic not found" }); return; }
   const { order, dialogue, caption, imageData, imagePrompt, characterIds } = req.body;

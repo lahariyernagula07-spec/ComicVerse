@@ -32,7 +32,11 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(
+  Array.isArray(req.params.id)
+    ? req.params.id[0]
+    : req.params.id
+);
   const [character] = await db
     .select()
     .from(charactersTable)
@@ -43,7 +47,11 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(
+  Array.isArray(req.params.id)
+    ? req.params.id[0]
+    : req.params.id
+);
   const { name, description, personality, visualStyle, avatarUrl } = req.body;
   const [updated] = await db
     .update(charactersTable)
@@ -56,7 +64,11 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(
+  Array.isArray(req.params.id)
+    ? req.params.id[0]
+    : req.params.id
+);
   const deleted = await db
     .delete(charactersTable)
     .where(and(eq(charactersTable.id, id), eq(charactersTable.userId, userId)))

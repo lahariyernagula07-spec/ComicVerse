@@ -8,7 +8,7 @@ const router = Router();
 
 router.put("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const { order, dialogue, caption, imageData, imagePrompt, characterIds } = req.body;
   // Verify ownership via comic join
   const [panel] = await db.select().from(panelsTable).where(eq(panelsTable.id, id));
@@ -33,7 +33,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const [panel] = await db.select().from(panelsTable).where(eq(panelsTable.id, id));
   if (!panel) { res.status(404).json({ error: "Not found" }); return; }
   const [comic] = await db.select().from(comicsTable).where(and(eq(comicsTable.id, panel.comicId), eq(comicsTable.userId, userId)));

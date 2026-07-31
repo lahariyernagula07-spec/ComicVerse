@@ -49,7 +49,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const [comic] = await db
     .select()
     .from(comicsTable)
@@ -68,7 +68,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const { title, description, style, template, coverImageData } = req.body;
   const [updated] = await db
     .update(comicsTable)
@@ -83,7 +83,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const deleted = await db
     .delete(comicsTable)
     .where(and(eq(comicsTable.id, id), eq(comicsTable.userId, userId)))
@@ -94,7 +94,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
 router.post("/:id/publish", requireAuth, async (req, res) => {
   const userId = (req as any).userId;
-  const id = parseInt(req.params.id);
+const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const { published } = req.body;
   const [updated] = await db
     .update(comicsTable)
