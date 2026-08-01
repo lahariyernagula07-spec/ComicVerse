@@ -8,7 +8,8 @@ import Community from "./pages/community";
 import Editor from "./pages/editor";
 import ComicDetail from "./pages/comic-detail";
 import NotFound from "./pages/not-found";
-
+import SignInPage from "./pages/sign-in";
+import SignUpPage from "./pages/sign-up";
 export default function App() {
   return (
     <Layout>
@@ -34,6 +35,8 @@ export default function App() {
         <Route path="/comic/:id" component={ComicDetail} />
 
         <Route component={NotFound} />
+        <Route path="/sign-in" component={SignInPage} />
+        <Route path="/sign-up" component={SignUpPage} />
       </Switch>
     </Layout>
   );
