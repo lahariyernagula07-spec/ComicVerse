@@ -1,6 +1,7 @@
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+"https://comicverse-4rro.onrender.com";
 setBaseUrl(`${BASE}/api`);
 
 let getToken: (() => Promise<string | null>) | null = null;
