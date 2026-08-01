@@ -70,7 +70,9 @@ export function requireAuth(
   (req as express.Request & { userId: string }).userId = userId;
   next();
 }
-
+app.get("/", (req, res) => {
+  res.send("ComicVerse Backend is Running 🚀");
+});
 app.use("/api", router);
 
 export default app;
