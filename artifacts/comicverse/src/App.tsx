@@ -33,10 +33,10 @@ export default function App() {
         </Route>
 
         <Route path="/comic/:id" component={ComicDetail} />
-
+    <Route path="/sign-in" component={SignInPage} />
+    <Route path="/sign-up" component={SignUpPage} />
         <Route component={NotFound} />
-        <Route path="/sign-in" component={SignInPage} />
-        <Route path="/sign-up" component={SignUpPage} />
+        
       </Switch>
     </Layout>
   );
