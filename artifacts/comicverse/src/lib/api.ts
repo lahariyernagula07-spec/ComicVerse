@@ -1,8 +1,10 @@
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
-"https://comicverse-4rro.onrender.com";
-setBaseUrl(`${BASE}/api`);
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://comicverse-4rro.onrender.com";
+
+setBaseUrl(`${API_URL}/api`);
 
 let getToken: (() => Promise<string | null>) | null = null;
 
@@ -23,4 +25,4 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   });
 }
 
-export const apiBase = `${BASE}/api`;
+export const apiBase = `${API_URL}/api`;
