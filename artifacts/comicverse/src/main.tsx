@@ -21,7 +21,6 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById("root")!).render(
   <ClerkProvider
     publishableKey={PUBLISHABLE_KEY}
-    proxyUrl={IS_PROD ? `${BASE_URL}/api/__clerk` : undefined}
     afterSignOutUrl={`${BASE_URL}/`}
     signInUrl={`${BASE_URL}/sign-in`}
     signUpUrl={`${BASE_URL}/sign-up`}
