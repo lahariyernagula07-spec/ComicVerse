@@ -2,7 +2,7 @@ import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "https://comicverse-4rro.onrender.com";
+  "https://comicverse-api-q7gi.onrender.com";
 
 setBaseUrl(`${API_URL}/api`);
 
