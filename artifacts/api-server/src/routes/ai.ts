@@ -14,9 +14,6 @@ const TEXT_MODELS = [
   "gemini-flash-latest",
   "gemini-flash-lite-latest",
 ];
-
-const POLLINATIONS_URL = "https://image.pollinations.ai/prompt";
-
 async function generateTextWithFallback(
   ai: GoogleGenAI,
   contents: Parameters<GoogleGenAI["models"]["generateContent"]>[0]["contents"],
@@ -142,41 +139,78 @@ Return ONLY valid JSON:
 router.post("/generate-image", requireAuth, async (req, res) => {
   try {
     const { prompt, style, panelDescription } = req.body;
-    if (!prompt || !style) { res.status(400).json({ error: "prompt and style required" }); return; }
 
-    const styleTag = STYLE_TAGS[style] ?? style;
-
-    // Scene description FIRST — FLUX weights prompt start most heavily
-    const scene = [panelDescription, prompt].filter(Boolean).join(". ");
-    const fullPrompt = `${scene}, ${styleTag}, ${QUALITY_SUFFIX}`;
-
-    const params = `width=1024&height=768&nologo=true&negative=${encodeURIComponent(NEGATIVE_PROMPT)}&enhance=true`;
-
-    // Try flux-pro first, fall back to flux on 502
-    const models = ["flux-pro", "flux"];
-    let buffer: ArrayBuffer | null = null;
-
-    for (const model of models) {
-      const url = `${POLLINATIONS_URL}/${encodeURIComponent(fullPrompt)}?${params}&model=${model}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        buffer = await response.arrayBuffer();
-        break;
-      }
-      console.warn(`Pollinations ${model} returned ${response.status}, trying next...`);
-    }
-
-    if (!buffer) {
-      res.status(502).json({ error: "Image service unavailable, please try again." });
+    if (!prompt || !style) {
+      res.status(400).json({ error: "prompt and style required" });
       return;
     }
 
-    const base64 = Buffer.from(buffer).toString("base64");
-    res.json({ imageData: base64 });
-  } catch (err: any) {
-    console.error("generate-image error:", err?.message);
-    res.status(500).json({ error: err?.message ?? "Image generation failed" });
+    const styleTag = STYLE_TAGS[style] ?? style;
+
+    const fullPrompt = `
+Create a comic panel illustration.
+
+Scene:
+${panelDescription || prompt}
+
+Style:
+${styleTag}
+
+Requirements:
+- professional comic artwork
+- clear characters
+- expressive faces
+- detailed background
+- sharp quality
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-image",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: fullPrompt
+            }
+          ]
+        }
+      ],
+      config: {
+        responseModalities: ["IMAGE"]
+      }
+    });
+
+
+    const imagePart =
+      response.candidates?.[0]?.content?.parts?.find(
+        (part:any) => part.inlineData
+      );
+
+
+    if (!imagePart?.inlineData) {
+      res.status(500).json({
+        error: "No image generated"
+      });
+      return;
+    }
+
+
+    res.json({
+      imageData: imagePart.inlineData.data
+    });
+
+
+  } catch (err:any) {
+
+    console.error(
+      "generate-image error:",
+      err.message
+    );
+
+    res.status(500).json({
+      error: "Image generation failed"
+    });
   }
 });
-
 export default router;
