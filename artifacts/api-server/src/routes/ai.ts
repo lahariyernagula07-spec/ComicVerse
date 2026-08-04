@@ -200,17 +200,21 @@ Requirements:
       imageData: imagePart.inlineData.data
     });
 
+} catch (err: any) {
+  console.error("generate-image error:", err);
 
-  } catch (err:any) {
-
-    console.error(
-      "generate-image error:",
-      err.message
-    );
-
-    res.status(500).json({
-      error: "Image generation failed"
-    });
-  }
+  res.status(500).json({
+    error: err?.message || "Image generation failed",
+    details:
+      err instanceof Error
+        ? {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          }
+        : err,
+  });
+}
+  
 });
 export default router;
