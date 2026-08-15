@@ -1,8 +1,6 @@
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://comicverse-api-q7gi.onrender.com";
+const API_URL = 'http://localhost:3000';
 
 setBaseUrl(`${API_URL}/api`);
 
@@ -10,11 +8,16 @@ let getToken: (() => Promise<string | null>) | null = null;
 
 export function setTokenGetter(fn: () => Promise<string | null>) {
   getToken = fn;
+
   setAuthTokenGetter(async () => (await fn()) ?? '');
 }
 
-export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function authFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
   const token = getToken ? await getToken() : null;
+
   return fetch(url, {
     ...options,
     headers: {
