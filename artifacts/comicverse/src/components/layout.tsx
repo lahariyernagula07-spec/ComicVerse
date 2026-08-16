@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import { useAuth, UserButton } from '@clerk/react';
 import {
-  BookOpen,
   Users,
   Globe,
   LayoutDashboard,
@@ -53,30 +52,18 @@ export default function Layout({
       <header className="sticky top-0 z-50 border-b border-cv-border/70 bg-cv-surface/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
-          {/* LOGO */}
-          <Link
-            href="/"
-            className="group flex shrink-0 items-center gap-3"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cv-accent to-cv-accent-light shadow-cv-glow transition-transform duration-300 group-hover:scale-105">
-              <BookOpen className="h-5 w-5 text-white" />
-            </div>
-
-            <div className="hidden sm:block">
-              <span
-                className="text-xl font-bold tracking-wide text-cv-text"
-                style={{
-                  fontFamily: 'var(--font-cv-display)',
-                }}
-              >
-                COMICVERSE
-              </span>
-
-              <p className="text-[10px] uppercase tracking-[0.2em] text-cv-muted">
-                Create your universe
-              </p>
-            </div>
-          </Link>
+         {/* LOGO */}
+<Link
+  href="/"
+  className="group flex shrink-0 items-center"
+  aria-label="ComicVerse Home"
+>
+  <img
+    src="/comicverse-logo.png"
+    alt="ComicVerse"
+    className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+  />
+</Link>
 
           {/* DESKTOP NAVIGATION */}
           <nav className="hidden items-center gap-1 md:flex">

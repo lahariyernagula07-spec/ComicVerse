@@ -1,4 +1,4 @@
-import { BookOpen, Sparkles, User, Menu, X } from "lucide-react";
+import { Sparkles, User, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 export default function Navbar() {
@@ -9,21 +9,13 @@ export default function Navbar() {
       <div className="cv-navbar-container">
 
         {/* Logo */}
-        <a href="#home" className="cv-logo">
-          <div className="cv-logo-icon">
-            <BookOpen size={24} />
-          </div>
-
-          <div className="cv-logo-text">
-            <span className="cv-logo-title">
-              COMICVERSE
-            </span>
-
-            <span className="cv-logo-tagline">
-              CREATE YOUR UNIVERSE
-            </span>
-          </div>
-        </a>
+<a href="#home" className="cv-logo" aria-label="ComicVerse Home">
+  <img
+    src="/comicverse-logo.png"
+    alt="ComicVerse"
+    className="h-12 w-auto object-contain"
+  />
+</a>
 
         {/* Desktop Navigation */}
         <div className="cv-nav-links">

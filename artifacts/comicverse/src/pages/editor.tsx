@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { Link } from "wouter";
 import {
@@ -8,7 +12,6 @@ import {
   Trash2,
   ArrowLeft,
   Image as ImageIcon,
-  Save,
   Globe,
   Lock,
   ChevronUp,
@@ -21,6 +24,10 @@ import {
 import { apiBase } from "../lib/api";
 import { useAuthFetch } from "../hooks/useAuthFetch";
 import { useNavigate } from "../lib/navigate";
+
+/* -------------------------------------------------------------------------- */
+/* CONSTANTS                                                                  */
+/* -------------------------------------------------------------------------- */
 
 const STYLES = [
   "manga",
@@ -41,6 +48,10 @@ const TEMPLATES = [
   "6-panel",
 ];
 
+/* -------------------------------------------------------------------------- */
+/* TYPES                                                                      */
+/* -------------------------------------------------------------------------- */
+
 type Panel = {
   id: number;
   comicId: number;
@@ -49,7 +60,7 @@ type Panel = {
   caption?: string | null;
   imageData?: string | null;
   imagePrompt?: string | null;
-  characterIds: number[] | string;
+  characterIds: number[] | string | null;
 };
 
 type Comic = {
@@ -77,7 +88,7 @@ type ApiError = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
+/* API HELPERS                                                                */
 /* -------------------------------------------------------------------------- */
 
 async function readApiResponse(res: Response) {
@@ -95,7 +106,9 @@ async function readApiResponse(res: Response) {
     const message =
       typeof data === "string"
         ? data
-        : data?.error || data?.message || `Request failed (${res.status})`;
+        : data?.error ||
+          data?.message ||
+          `Request failed (${res.status})`;
 
     throw new Error(message);
   }
@@ -105,13 +118,20 @@ async function readApiResponse(res: Response) {
 
 function getCharacterIds(panel: Panel): number[] {
   if (Array.isArray(panel.characterIds)) {
-    return panel.characterIds.map(Number);
+    return panel.characterIds
+      .map(Number)
+      .filter((id) => Number.isFinite(id));
   }
 
   if (typeof panel.characterIds === "string") {
     try {
       const parsed = JSON.parse(panel.characterIds);
-      return Array.isArray(parsed) ? parsed.map(Number) : [];
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(Number)
+          .filter((id) => Number.isFinite(id));
+      }
     } catch {
       return [];
     }
@@ -121,17 +141,25 @@ function getCharacterIds(panel: Panel): number[] {
 }
 
 function normalizeComic(data: any): Comic | null {
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
   const comic = data.comic ?? data;
 
-  if (!comic?.id) return null;
+  if (!comic?.id) {
+    return null;
+  }
 
   return {
     ...comic,
+
+    published: Boolean(comic.published),
+
     panels: Array.isArray(comic.panels)
       ? comic.panels.map((panel: any) => ({
           ...panel,
+          order: Number(panel.order ?? 0),
           characterIds: getCharacterIds(panel),
         }))
       : [],
@@ -139,14 +167,13 @@ function normalizeComic(data: any): Comic | null {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Panel Card                                                                 */
+/* PANEL CARD                                                                 */
 /* -------------------------------------------------------------------------- */
 
 function PanelCard({
   panel,
   index,
   total,
-  comic,
   characters,
   onUpdate,
   onDelete,
@@ -157,21 +184,34 @@ function PanelCard({
   panel: Panel;
   index: number;
   total: number;
-  comic: Comic;
   characters: Character[];
-  onUpdate: (id: number, data: Partial<Panel>) => Promise<void>;
+  onUpdate: (
+    id: number,
+    data: Partial<Panel>
+  ) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
-  onMove: (id: number, dir: "up" | "down") => Promise<void>;
+  onMove: (
+    id: number,
+    direction: "up" | "down"
+  ) => Promise<void>;
   onGenerateImage: (panel: Panel) => Promise<void>;
   onGenerateDialogue: (panel: Panel) => Promise<void>;
 }) {
-  const [localDialogue, setLocalDialogue] = useState(panel.dialogue ?? "");
-  const [localCaption, setLocalCaption] = useState(panel.caption ?? "");
-  const [localPrompt, setLocalPrompt] = useState(panel.imagePrompt ?? "");
+  const [localDialogue, setLocalDialogue] = useState(
+    panel.dialogue ?? ""
+  );
 
+  const [localCaption, setLocalCaption] = useState(
+    panel.caption ?? ""
+  );
+
+  const [localPrompt, setLocalPrompt] = useState(
+    panel.imagePrompt ?? ""
+  );
+
+  const [saving, setSaving] = useState(false);
   const [generatingImg, setGeneratingImg] = useState(false);
   const [generatingDlg, setGeneratingDlg] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -188,17 +228,28 @@ function PanelCard({
 
   const selectedCharacterIds = getCharacterIds(panel);
 
+  /* ---------------------------------------------------------------------- */
+  /* SAVE FIELD                                                             */
+  /* ---------------------------------------------------------------------- */
+
   const saveField = async (data: Partial<Panel>) => {
     try {
       setError("");
       setSaving(true);
+
       await onUpdate(panel.id, data);
-    } catch (err: any) {
-      setError(err.message || "Failed to save");
+    } catch (error: any) {
+      setError(
+        error?.message || "Failed to save changes."
+      );
     } finally {
       setSaving(false);
     }
   };
+
+  /* ---------------------------------------------------------------------- */
+  /* GENERATE IMAGE                                                         */
+  /* ---------------------------------------------------------------------- */
 
   const generateImage = async () => {
     const prompt = localPrompt.trim();
@@ -220,12 +271,18 @@ function PanelCard({
         ...panel,
         imagePrompt: prompt,
       });
-    } catch (err: any) {
-      setError(err.message || "Image generation failed.");
+    } catch (error: any) {
+      setError(
+        error?.message || "Image generation failed."
+      );
     } finally {
       setGeneratingImg(false);
     }
   };
+
+  /* ---------------------------------------------------------------------- */
+  /* GENERATE DIALOGUE                                                      */
+  /* ---------------------------------------------------------------------- */
 
   const generateDialogue = async () => {
     try {
@@ -236,16 +293,25 @@ function PanelCard({
         ...panel,
         imagePrompt: localPrompt,
       });
-    } catch (err: any) {
-      setError(err.message || "Dialogue generation failed.");
+    } catch (error: any) {
+      setError(
+        error?.message || "Dialogue generation failed."
+      );
     } finally {
       setGeneratingDlg(false);
     }
   };
 
+  /* ---------------------------------------------------------------------- */
+  /* RENDER                                                                 */
+  /* ---------------------------------------------------------------------- */
+
   return (
     <div className="bg-cv-card border border-cv-border rounded-xl overflow-hidden">
-      {/* IMAGE */}
+      {/* ---------------------------------------------------------------- */}
+      {/* IMAGE                                                             */}
+      {/* ---------------------------------------------------------------- */}
+
       <div className="h-52 bg-cv-surface relative halftone">
         {panel.imageData ? (
           <img
@@ -260,17 +326,26 @@ function PanelCard({
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-cv-muted">
             <BookOpen className="w-10 h-10" />
-            <span className="text-sm">No image yet</span>
+            <span className="text-sm">
+              No image yet
+            </span>
           </div>
         )}
+
+        {/* PANEL NUMBER */}
 
         <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded">
           Panel {index + 1}
         </div>
 
+        {/* PANEL CONTROLS */}
+
         <div className="absolute top-2 right-2 flex gap-1">
           <button
-            onClick={() => onMove(panel.id, "up")}
+            type="button"
+            onClick={() =>
+              onMove(panel.id, "up")
+            }
             disabled={index === 0}
             className="p-1.5 rounded bg-black/70 text-white hover:bg-cv-accent disabled:opacity-30"
             title="Move up"
@@ -279,7 +354,10 @@ function PanelCard({
           </button>
 
           <button
-            onClick={() => onMove(panel.id, "down")}
+            type="button"
+            onClick={() =>
+              onMove(panel.id, "down")
+            }
             disabled={index === total - 1}
             className="p-1.5 rounded bg-black/70 text-white hover:bg-cv-accent disabled:opacity-30"
             title="Move down"
@@ -288,13 +366,24 @@ function PanelCard({
           </button>
 
           <button
+            type="button"
             onClick={async () => {
-              if (!confirm("Delete this panel?")) return;
+              const confirmed = window.confirm(
+                "Delete this panel?"
+              );
+
+              if (!confirmed) {
+                return;
+              }
 
               try {
+                setError("");
                 await onDelete(panel.id);
-              } catch (err: any) {
-                setError(err.message || "Failed to delete panel");
+              } catch (error: any) {
+                setError(
+                  error?.message ||
+                    "Failed to delete panel."
+                );
               }
             }}
             className="p-1.5 rounded bg-black/70 text-red-400 hover:bg-red-900"
@@ -305,8 +394,13 @@ function PanelCard({
         </div>
       </div>
 
+      {/* ---------------------------------------------------------------- */}
+      {/* PANEL CONTENT                                                     */}
+      {/* ---------------------------------------------------------------- */}
+
       <div className="p-4 space-y-4">
         {/* IMAGE PROMPT */}
+
         <div>
           <label className="block text-xs text-cv-muted mb-1.5 uppercase tracking-wide font-medium">
             Image Prompt
@@ -314,20 +408,32 @@ function PanelCard({
 
           <div className="flex gap-2">
             <input
+              type="text"
               className="flex-1 bg-cv-surface border border-cv-border rounded-lg px-3 py-2 text-cv-text text-sm focus:outline-none focus:border-cv-accent"
               value={localPrompt}
-              onChange={(e) => setLocalPrompt(e.target.value)}
+              onChange={(e) =>
+                setLocalPrompt(e.target.value)
+              }
               onBlur={() => {
-                if (localPrompt !== (panel.imagePrompt ?? "")) {
-                  saveField({ imagePrompt: localPrompt });
+                if (
+                  localPrompt !==
+                  (panel.imagePrompt ?? "")
+                ) {
+                  saveField({
+                    imagePrompt: localPrompt,
+                  });
                 }
               }}
               placeholder="Describe the scene..."
             />
 
             <button
+              type="button"
               onClick={generateImage}
-              disabled={generatingImg || !localPrompt.trim()}
+              disabled={
+                generatingImg ||
+                !localPrompt.trim()
+              }
               className="px-3 rounded-lg bg-cv-accent text-white hover:bg-cv-accent-light disabled:opacity-40"
               title="Generate image"
             >
@@ -341,6 +447,7 @@ function PanelCard({
         </div>
 
         {/* DIALOGUE */}
+
         <div>
           <label className="block text-xs text-cv-muted mb-1.5 uppercase tracking-wide font-medium">
             Dialogue
@@ -351,7 +458,9 @@ function PanelCard({
               className="flex-1 bg-cv-surface border border-cv-border rounded-lg px-3 py-2 text-cv-text text-sm focus:outline-none focus:border-cv-accent resize-none"
               rows={3}
               value={localDialogue}
-              onChange={(e) => setLocalDialogue(e.target.value)}
+              onChange={(e) =>
+                setLocalDialogue(e.target.value)
+              }
               onBlur={() =>
                 saveField({
                   dialogue: localDialogue,
@@ -361,6 +470,7 @@ function PanelCard({
             />
 
             <button
+              type="button"
               onClick={generateDialogue}
               disabled={generatingDlg}
               className="px-3 self-start rounded-lg bg-purple-900/30 text-purple-300 hover:bg-purple-900/60 disabled:opacity-40"
@@ -376,15 +486,19 @@ function PanelCard({
         </div>
 
         {/* CAPTION */}
+
         <div>
           <label className="block text-xs text-cv-muted mb-1.5 uppercase tracking-wide font-medium">
             Caption
           </label>
 
           <input
+            type="text"
             className="w-full bg-cv-surface border border-cv-border rounded-lg px-3 py-2 text-cv-text text-sm focus:outline-none focus:border-cv-accent"
             value={localCaption}
-            onChange={(e) => setLocalCaption(e.target.value)}
+            onChange={(e) =>
+              setLocalCaption(e.target.value)
+            }
             onBlur={() =>
               saveField({
                 caption: localCaption,
@@ -395,6 +509,7 @@ function PanelCard({
         </div>
 
         {/* CHARACTERS */}
+
         <div>
           <label className="block text-xs text-cv-muted mb-1.5 uppercase tracking-wide font-medium">
             Characters
@@ -402,17 +517,25 @@ function PanelCard({
 
           <div className="flex flex-wrap gap-1.5">
             {characters.map((character) => {
-              const selected = selectedCharacterIds.includes(character.id);
+              const selected =
+                selectedCharacterIds.includes(
+                  character.id
+                );
 
               return (
                 <button
+                  type="button"
                   key={character.id}
                   onClick={() => {
                     const ids = selected
                       ? selectedCharacterIds.filter(
-                          (id) => id !== character.id
+                          (id) =>
+                            id !== character.id
                         )
-                      : [...selectedCharacterIds, character.id];
+                      : [
+                          ...selectedCharacterIds,
+                          character.id,
+                        ];
 
                     saveField({
                       characterIds: ids,
@@ -439,12 +562,16 @@ function PanelCard({
           </div>
         </div>
 
+        {/* SAVING */}
+
         {saving && (
           <div className="text-xs text-cv-muted flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" />
             Saving...
           </div>
         )}
+
+        {/* ERROR */}
 
         {error && (
           <div className="flex gap-2 items-start text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">
@@ -458,7 +585,7 @@ function PanelCard({
 }
 
 /* -------------------------------------------------------------------------- */
-/* AI Story Modal                                                             */
+/* AI STORY MODAL                                                             */
 /* -------------------------------------------------------------------------- */
 
 function StoryModal({
@@ -481,53 +608,110 @@ function StoryModal({
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
 
+  /* ---------------------------------------------------------------------- */
+  /* GENERATE STORY                                                         */
+  /* ---------------------------------------------------------------------- */
+
   const generate = async () => {
-    if (!prompt.trim()) return;
+    const cleanPrompt = prompt.trim();
+
+    if (!cleanPrompt) {
+      setError("Please enter a story premise.");
+      return;
+    }
 
     try {
       setLoading(true);
       setError("");
 
-      const res = await authFetch(`${apiBase}/ai/generate-story`, {
-        method: "POST",
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          style: comic.style,
-          panelCount,
-          characterNames: characters.map((c) => c.name),
-        }),
-      });
+      const res = await authFetch(
+        `${apiBase}/ai/generate-story`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            prompt: cleanPrompt,
+            style: comic.style,
+            panelCount,
+            characterNames: characters.map(
+              (character) => character.name
+            ),
+          }),
+        }
+      );
 
       const data = await readApiResponse(res);
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message || "Story generation failed.");
+
+      if (!data) {
+        throw new Error(
+          "AI returned an empty response."
+        );
+      }
+
+      const story =
+        data.story ??
+        data.data?.story ??
+        data;
+
+      if (
+        !story?.panels ||
+        !Array.isArray(story.panels)
+      ) {
+        throw new Error(
+          "AI returned an invalid story format."
+        );
+      }
+
+      setResult(story);
+    } catch (error: any) {
+      setError(
+        error?.message ||
+          "Story generation failed."
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------------------------------------------------------------- */
+  /* APPLY STORY                                                            */
+  /* ---------------------------------------------------------------------- */
+
   const applyStory = async () => {
+    if (!result) {
+      return;
+    }
+
     try {
       setApplying(true);
       setError("");
+
       await onApply(result);
-    } catch (err: any) {
-      setError(err.message || "Failed to apply story.");
+    } catch (error: any) {
+      setError(
+        error?.message ||
+          "Failed to apply story."
+      );
     } finally {
       setApplying(false);
     }
   };
 
+  /* ---------------------------------------------------------------------- */
+  /* RENDER                                                                 */
+  /* ---------------------------------------------------------------------- */
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-cv-surface border border-cv-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6">
+          {/* HEADER */}
+
           <div className="flex items-center justify-between mb-5">
             <h2
               className="text-xl font-bold text-cv-text"
               style={{
-                fontFamily: "var(--font-cv-display)",
+                fontFamily:
+                  "var(--font-cv-display)",
                 letterSpacing: "0.04em",
               }}
             >
@@ -535,6 +719,7 @@ function StoryModal({
             </h2>
 
             <button
+              type="button"
               onClick={onClose}
               className="text-cv-muted hover:text-cv-text text-xl"
             >
@@ -543,6 +728,10 @@ function StoryModal({
           </div>
 
           {!result ? (
+            /* ------------------------------------------------------------ */
+            /* GENERATE FORM                                                */
+            /* ------------------------------------------------------------ */
+
             <div className="space-y-4">
               <div>
                 <label className="block text-xs text-cv-muted mb-1.5 uppercase tracking-wide font-medium">
@@ -553,7 +742,9 @@ function StoryModal({
                   className="w-full bg-cv-card border border-cv-border rounded-lg px-3 py-2 text-cv-text text-sm focus:outline-none focus:border-cv-accent resize-none"
                   rows={4}
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) =>
+                    setPrompt(e.target.value)
+                  }
                   placeholder="A young hero discovers a mysterious robot..."
                 />
               </div>
@@ -568,7 +759,11 @@ function StoryModal({
                   min={2}
                   max={8}
                   value={panelCount}
-                  onChange={(e) => setPanelCount(Number(e.target.value))}
+                  onChange={(e) =>
+                    setPanelCount(
+                      Number(e.target.value)
+                    )
+                  }
                   className="w-full"
                 />
               </div>
@@ -581,8 +776,12 @@ function StoryModal({
 
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={generate}
-                  disabled={loading || !prompt.trim()}
+                  disabled={
+                    loading ||
+                    !prompt.trim()
+                  }
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-cv-accent text-white font-semibold hover:bg-cv-accent-light disabled:opacity-50"
                 >
                   {loading ? (
@@ -599,6 +798,7 @@ function StoryModal({
                 </button>
 
                 <button
+                  type="button"
                   onClick={onClose}
                   className="px-4 rounded-xl border border-cv-border text-cv-muted"
                 >
@@ -607,44 +807,56 @@ function StoryModal({
               </div>
             </div>
           ) : (
+            /* ------------------------------------------------------------ */
+            /* RESULT                                                       */
+            /* ------------------------------------------------------------ */
+
             <div className="space-y-4">
               <div className="bg-cv-card rounded-xl p-4">
                 <h3 className="font-bold text-cv-text text-lg">
-                  {result.title}
+                  {result.title ||
+                    "Generated Story"}
                 </h3>
 
                 <p className="text-sm text-cv-muted mt-1">
-                  {result.description}
+                  {result.description ||
+                    "AI generated comic story"}
                 </p>
               </div>
 
               <div className="space-y-2">
-                {result.panels?.map((panel: any, index: number) => (
-                  <div
-                    key={index}
-                    className="bg-cv-card rounded-lg p-3 text-sm"
-                  >
-                    <p className="text-xs text-cv-muted font-medium mb-1">
-                      Panel {panel.order ?? index + 1}
-                    </p>
-
-                    {panel.caption && (
-                      <p className="text-cv-muted italic text-xs mb-1">
-                        {panel.caption}
+                {result.panels.map(
+                  (panel: any, index: number) => (
+                    <div
+                      key={index}
+                      className="bg-cv-card rounded-lg p-3 text-sm"
+                    >
+                      <p className="text-xs text-cv-muted font-medium mb-1">
+                        Panel{" "}
+                        {panel.order ??
+                          index + 1}
                       </p>
-                    )}
 
-                    {panel.dialogue && (
-                      <p className="text-cv-text mb-1">
-                        "{panel.dialogue}"
-                      </p>
-                    )}
+                      {panel.caption && (
+                        <p className="text-cv-muted italic text-xs mb-1">
+                          {panel.caption}
+                        </p>
+                      )}
 
-                    <p className="text-xs text-purple-300">
-                      {panel.imagePrompt}
-                    </p>
-                  </div>
-                ))}
+                      {panel.dialogue && (
+                        <p className="text-cv-text mb-1">
+                          "{panel.dialogue}"
+                        </p>
+                      )}
+
+                      {panel.imagePrompt && (
+                        <p className="text-xs text-purple-300">
+                          {panel.imagePrompt}
+                        </p>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
 
               {error && (
@@ -655,6 +867,7 @@ function StoryModal({
 
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={applyStory}
                   disabled={applying}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-cv-accent text-white font-semibold disabled:opacity-50"
@@ -670,7 +883,11 @@ function StoryModal({
                 </button>
 
                 <button
-                  onClick={() => setResult(null)}
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    setError("");
+                  }}
                   className="px-4 rounded-xl border border-cv-border text-cv-muted"
                 >
                   Regenerate
@@ -685,7 +902,7 @@ function StoryModal({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Main Editor                                                                */
+/* MAIN EDITOR                                                                */
 /* -------------------------------------------------------------------------- */
 
 export default function Editor({
@@ -698,21 +915,33 @@ export default function Editor({
   const nav = useNavigate();
   const qc = useQueryClient();
 
-  const [showStoryModal, setShowStoryModal] = useState(false);
-  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [showStoryModal, setShowStoryModal] =
+    useState(false);
 
-  const [newComicForm, setNewComicForm] = useState({
-    title: "",
-    style: "manga",
-    template: "4-panel",
-  });
+  const [createdId, setCreatedId] =
+    useState<number | null>(null);
 
   const [pageError, setPageError] = useState("");
 
-  const effectiveId = comicId ?? createdId;
+  const [newComicForm, setNewComicForm] =
+    useState({
+      title: "",
+      style: "manga",
+      template: "4-panel",
+    });
+
+  const [localTitle, setLocalTitle] =
+    useState("");
 
   /* ---------------------------------------------------------------------- */
-  /* Load comic                                                             */
+  /* EFFECTIVE COMIC ID                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  const effectiveId =
+    comicId ?? createdId;
+
+  /* ---------------------------------------------------------------------- */
+  /* LOAD COMIC                                                             */
   /* ---------------------------------------------------------------------- */
 
   const {
@@ -720,272 +949,408 @@ export default function Editor({
     isLoading,
     isError,
     error: comicQueryError,
-  } = useQuery({
-    queryKey: ["comic-edit", effectiveId],
-    queryFn: async () => {
-      const res = await authFetch(`${apiBase}/comics/${effectiveId}`);
-      const data = await readApiResponse(res);
+  } = useQuery<Comic | null>({
+    queryKey: [
+      "comic-edit",
+      effectiveId,
+    ],
 
-      const normalized = normalizeComic(data);
+    queryFn: async () => {
+      if (!effectiveId) {
+        return null;
+      }
+
+      const res = await authFetch(
+        `${apiBase}/comics/${effectiveId}`
+      );
+
+      const data =
+        await readApiResponse(res);
+
+      const normalized =
+        normalizeComic(data);
 
       if (!normalized) {
-        throw new Error("Invalid comic response from server.");
+        throw new Error(
+          "Invalid comic response from server."
+        );
       }
 
       return normalized;
     },
-    enabled: !!effectiveId && !!isSignedIn,
+
+    enabled:
+      !!effectiveId &&
+      !!isSignedIn,
   });
 
-  const comic = comicData as Comic | undefined;
+  const comic = comicData ?? undefined;
 
   /* ---------------------------------------------------------------------- */
-  /* Load characters                                                        */
+  /* KEEP TITLE IN SYNC                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (comic) {
+      setLocalTitle(comic.title ?? "");
+    }
+  }, [comic?.id, comic?.title]);
+
+  /* ---------------------------------------------------------------------- */
+  /* LOAD CHARACTERS                                                        */
   /* ---------------------------------------------------------------------- */
 
   const {
     data: characters = [],
     error: charactersError,
-  } = useQuery({
+  } = useQuery<Character[]>({
     queryKey: ["characters"],
+
     queryFn: async () => {
-      const res = await authFetch(`${apiBase}/characters`);
+      const res = await authFetch(
+        `${apiBase}/characters`
+      );
 
-      const data = await readApiResponse(res);
+      const data =
+        await readApiResponse(res);
 
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.characters)) return data.characters;
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (
+        Array.isArray(data?.characters)
+      ) {
+        return data.characters;
+      }
+
+      if (
+        Array.isArray(data?.data)
+      ) {
+        return data.data;
+      }
 
       return [];
     },
+
     enabled: !!isSignedIn,
   });
 
   /* ---------------------------------------------------------------------- */
-  /* Create Comic                                                           */
+  /* CREATE COMIC                                                           */
   /* ---------------------------------------------------------------------- */
 
-  const createComicMutation = useMutation({
-    mutationFn: async (data: {
-      title: string;
-      style: string;
-      template: string;
-    }) => {
-      const res = await authFetch(`${apiBase}/comics`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-
-      return readApiResponse(res);
-    },
-
-    onSuccess: (response) => {
-      /*
-       * Different backend versions can return:
-       *
-       * { id: 1 }
-       * { comic: { id: 1 } }
-       *
-       * Support both.
-       */
-      const createdComic =
-        response?.comic ??
-        response?.data?.comic ??
-        response?.data ??
-        response;
-
-      const id = Number(createdComic?.id);
-
-      if (!id || Number.isNaN(id)) {
-        setPageError(
-          "Comic was created but the server did not return a valid comic ID."
+  const createComicMutation =
+    useMutation({
+      mutationFn: async (data: {
+        title: string;
+        style: string;
+        template: string;
+      }) => {
+        const res = await authFetch(
+          `${apiBase}/comics`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
         );
-        console.error("Unexpected create comic response:", response);
-        return;
-      }
 
-      setCreatedId(id);
-      setPageError("");
+        return readApiResponse(res);
+      },
 
-      qc.invalidateQueries({
-        queryKey: ["my-comics"],
-      });
+      onSuccess: (response) => {
+        const createdComic =
+          response?.comic ??
+          response?.data?.comic ??
+          response?.data ??
+          response;
 
-      /*
-       * Navigate only after we have a real ID.
-       */
-      nav(`/editor/${id}`);
-    },
+        const id = Number(
+          createdComic?.id
+        );
 
-    onError: (error: any) => {
-      console.error("CREATE COMIC ERROR:", error);
+        if (
+          !id ||
+          Number.isNaN(id)
+        ) {
+          console.error(
+            "Unexpected create comic response:",
+            response
+          );
 
-      setPageError(
-        error?.message ||
-          "Could not create comic. Please check the API server."
-      );
-    },
-  });
+          setPageError(
+            "Comic was created, but the server did not return a valid comic ID."
+          );
 
-  /* ---------------------------------------------------------------------- */
-  /* Update Comic                                                           */
-  /* ---------------------------------------------------------------------- */
-
-  const updateComicMutation = useMutation({
-    mutationFn: async (data: any) => {
-      if (!effectiveId) {
-        throw new Error("No comic selected.");
-      }
-
-      const res = await authFetch(`${apiBase}/comics/${effectiveId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
-
-      return readApiResponse(res);
-    },
-
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["comic-edit", effectiveId],
-      });
-
-      qc.invalidateQueries({
-        queryKey: ["my-comics"],
-      });
-    },
-
-    onError: (error: any) => {
-      console.error("UPDATE COMIC ERROR:", error);
-      setPageError(error?.message || "Failed to save comic.");
-    },
-  });
-
-  /* ---------------------------------------------------------------------- */
-  /* Create Panel                                                           */
-  /* ---------------------------------------------------------------------- */
-
-  const createPanelMutation = useMutation({
-    mutationFn: async (data: any) => {
-      if (!effectiveId) {
-        throw new Error("No comic selected.");
-      }
-
-      const res = await authFetch(
-        `${apiBase}/comics/${effectiveId}/panels`,
-        {
-          method: "POST",
-          body: JSON.stringify(data),
+          return;
         }
-      );
 
-      return readApiResponse(res);
-    },
+        setCreatedId(id);
+        setPageError("");
 
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["comic-edit", effectiveId],
-      });
-    },
+        qc.invalidateQueries({
+          queryKey: ["my-comics"],
+        });
 
-    onError: (error: any) => {
-      console.error("CREATE PANEL ERROR:", error);
-      setPageError(error?.message || "Failed to create panel.");
-    },
-  });
+        nav(`/editor/${id}`);
+      },
 
-  /* ---------------------------------------------------------------------- */
-  /* Update Panel                                                           */
-  /* ---------------------------------------------------------------------- */
+      onError: (error: any) => {
+        console.error(
+          "CREATE COMIC ERROR:",
+          error
+        );
 
-  const updatePanelMutation = useMutation({
-    mutationFn: async ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: Partial<Panel>;
-    }) => {
-      const res = await authFetch(`${apiBase}/panels/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
-
-      return readApiResponse(res);
-    },
-
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["comic-edit", effectiveId],
-      });
-    },
-
-    onError: (error: any) => {
-      console.error("UPDATE PANEL ERROR:", error);
-      setPageError(error?.message || "Failed to update panel.");
-    },
-  });
+        setPageError(
+          error?.message ||
+            "Could not create comic. Please check the API server."
+        );
+      },
+    });
 
   /* ---------------------------------------------------------------------- */
-  /* Delete Panel                                                           */
+  /* UPDATE COMIC                                                           */
   /* ---------------------------------------------------------------------- */
 
-  const deletePanelMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await authFetch(`${apiBase}/panels/${id}`, {
-        method: "DELETE",
-      });
-
-      return readApiResponse(res);
-    },
-
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["comic-edit", effectiveId],
-      });
-    },
-
-    onError: (error: any) => {
-      console.error("DELETE PANEL ERROR:", error);
-      setPageError(error?.message || "Failed to delete panel.");
-    },
-  });
-
-  /* ---------------------------------------------------------------------- */
-  /* Publish                                                                */
-  /* ---------------------------------------------------------------------- */
-
-  const publishMutation = useMutation({
-    mutationFn: async (published: boolean) => {
-      if (!effectiveId) {
-        throw new Error("No comic selected.");
-      }
-
-      const res = await authFetch(
-        `${apiBase}/comics/${effectiveId}/publish`,
-        {
-          method: "POST",
-          body: JSON.stringify({ published }),
+  const updateComicMutation =
+    useMutation({
+      mutationFn: async (
+        data: Partial<Comic>
+      ) => {
+        if (!effectiveId) {
+          throw new Error(
+            "No comic selected."
+          );
         }
-      );
 
-      return readApiResponse(res);
-    },
+        const res = await authFetch(
+          `${apiBase}/comics/${effectiveId}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+          }
+        );
 
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["comic-edit", effectiveId],
-      });
-    },
+        return readApiResponse(res);
+      },
 
-    onError: (error: any) => {
-      console.error("PUBLISH ERROR:", error);
-      setPageError(error?.message || "Failed to publish comic.");
-    },
-  });
+      onSuccess: () => {
+        qc.invalidateQueries({
+          queryKey: [
+            "comic-edit",
+            effectiveId,
+          ],
+        });
+
+        qc.invalidateQueries({
+          queryKey: ["my-comics"],
+        });
+      },
+
+      onError: (error: any) => {
+        console.error(
+          "UPDATE COMIC ERROR:",
+          error
+        );
+
+        setPageError(
+          error?.message ||
+            "Failed to save comic."
+        );
+      },
+    });
 
   /* ---------------------------------------------------------------------- */
-  /* Authentication                                                         */
+  /* CREATE PANEL                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  const createPanelMutation =
+    useMutation({
+      mutationFn: async (
+        data: any
+      ) => {
+        if (!effectiveId) {
+          throw new Error(
+            "No comic selected."
+          );
+        }
+
+        const res = await authFetch(
+          `${apiBase}/comics/${effectiveId}/panels`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        );
+
+        return readApiResponse(res);
+      },
+
+      onSuccess: () => {
+        qc.invalidateQueries({
+          queryKey: [
+            "comic-edit",
+            effectiveId,
+          ],
+        });
+      },
+
+      onError: (error: any) => {
+        console.error(
+          "CREATE PANEL ERROR:",
+          error
+        );
+
+        setPageError(
+          error?.message ||
+            "Failed to create panel."
+        );
+      },
+    });
+
+  /* ---------------------------------------------------------------------- */
+  /* UPDATE PANEL                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  const updatePanelMutation =
+    useMutation({
+      mutationFn: async ({
+        id,
+        data,
+      }: {
+        id: number;
+        data: Partial<Panel>;
+      }) => {
+        const res = await authFetch(
+          `${apiBase}/panels/${id}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+          }
+        );
+
+        return readApiResponse(res);
+      },
+
+      onSuccess: () => {
+        qc.invalidateQueries({
+          queryKey: [
+            "comic-edit",
+            effectiveId,
+          ],
+        });
+      },
+
+      onError: (error: any) => {
+        console.error(
+          "UPDATE PANEL ERROR:",
+          error
+        );
+
+        setPageError(
+          error?.message ||
+            "Failed to update panel."
+        );
+      },
+    });
+
+  /* ---------------------------------------------------------------------- */
+  /* DELETE PANEL                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  const deletePanelMutation =
+    useMutation({
+      mutationFn: async (
+        id: number
+      ) => {
+        const res = await authFetch(
+          `${apiBase}/panels/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        return readApiResponse(res);
+      },
+
+      onSuccess: () => {
+        qc.invalidateQueries({
+          queryKey: [
+            "comic-edit",
+            effectiveId,
+          ],
+        });
+      },
+
+      onError: (error: any) => {
+        console.error(
+          "DELETE PANEL ERROR:",
+          error
+        );
+
+        setPageError(
+          error?.message ||
+            "Failed to delete panel."
+        );
+      },
+    });
+
+  /* ---------------------------------------------------------------------- */
+  /* PUBLISH                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  const publishMutation =
+    useMutation({
+      mutationFn: async (
+        published: boolean
+      ) => {
+        if (!effectiveId) {
+          throw new Error(
+            "No comic selected."
+          );
+        }
+
+        const res = await authFetch(
+          `${apiBase}/comics/${effectiveId}/publish`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              published,
+            }),
+          }
+        );
+
+        return readApiResponse(res);
+      },
+
+      onSuccess: () => {
+        qc.invalidateQueries({
+          queryKey: [
+            "comic-edit",
+            effectiveId,
+          ],
+        });
+
+        qc.invalidateQueries({
+          queryKey: ["my-comics"],
+        });
+      },
+
+      onError: (error: any) => {
+        console.error(
+          "PUBLISH ERROR:",
+          error
+        );
+
+        setPageError(
+          error?.message ||
+            "Failed to publish comic."
+        );
+      },
+    });
+
+  /* ---------------------------------------------------------------------- */
+  /* AUTH CHECK                                                             */
   /* ---------------------------------------------------------------------- */
 
   if (!isSignedIn) {
@@ -999,15 +1364,20 @@ export default function Editor({
   }
 
   /* ---------------------------------------------------------------------- */
-  /* CREATE NEW COMIC SCREEN                                                */
+  /* NEW COMIC SCREEN                                                       */
   /* ---------------------------------------------------------------------- */
 
   if (!effectiveId) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16">
+        {/* HEADER */}
+
         <div className="flex items-center gap-3 mb-8">
           <button
-            onClick={() => nav("/dashboard")}
+            type="button"
+            onClick={() =>
+              nav("/dashboard")
+            }
             className="text-cv-muted hover:text-cv-text transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1016,7 +1386,8 @@ export default function Editor({
           <h1
             className="text-3xl font-bold text-cv-text"
             style={{
-              fontFamily: "var(--font-cv-display)",
+              fontFamily:
+                "var(--font-cv-display)",
               letterSpacing: "0.05em",
             }}
           >
@@ -1026,19 +1397,23 @@ export default function Editor({
 
         <div className="bg-cv-card border border-cv-border rounded-2xl p-6 space-y-6">
           {/* TITLE */}
+
           <div>
             <label className="block text-xs text-cv-muted mb-2 uppercase tracking-wide font-medium">
               Title *
             </label>
 
             <input
+              type="text"
               className="w-full bg-cv-surface border border-cv-border rounded-xl px-4 py-3 text-cv-text focus:outline-none focus:border-cv-accent"
               value={newComicForm.title}
               onChange={(e) =>
-                setNewComicForm((current) => ({
-                  ...current,
-                  title: e.target.value,
-                }))
+                setNewComicForm(
+                  (current) => ({
+                    ...current,
+                    title: e.target.value,
+                  })
+                )
               }
               placeholder="My Awesome Comic"
               onKeyDown={(e) => {
@@ -1047,16 +1422,20 @@ export default function Editor({
                   newComicForm.title.trim() &&
                   !createComicMutation.isPending
                 ) {
-                  createComicMutation.mutate({
-                    ...newComicForm,
-                    title: newComicForm.title.trim(),
-                  });
+                  createComicMutation.mutate(
+                    {
+                      ...newComicForm,
+                      title:
+                        newComicForm.title.trim(),
+                    }
+                  );
                 }
               }}
             />
           </div>
 
           {/* STYLE */}
+
           <div>
             <label className="block text-xs text-cv-muted mb-2 uppercase tracking-wide font-medium">
               Art Style
@@ -1065,16 +1444,19 @@ export default function Editor({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {STYLES.map((style) => (
                 <button
-                  key={style}
                   type="button"
+                  key={style}
                   onClick={() =>
-                    setNewComicForm((current) => ({
-                      ...current,
-                      style,
-                    }))
+                    setNewComicForm(
+                      (current) => ({
+                        ...current,
+                        style,
+                      })
+                    )
                   }
                   className={`py-2.5 rounded-lg text-xs font-medium border transition-colors capitalize ${
-                    newComicForm.style === style
+                    newComicForm.style ===
+                    style
                       ? "bg-cv-accent border-cv-accent text-white"
                       : "border-cv-border text-cv-muted hover:border-cv-accent"
                   }`}
@@ -1086,64 +1468,80 @@ export default function Editor({
           </div>
 
           {/* TEMPLATE */}
+
           <div>
             <label className="block text-xs text-cv-muted mb-2 uppercase tracking-wide font-medium">
               Template
             </label>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {TEMPLATES.map((template) => (
-                <button
-                  key={template}
-                  type="button"
-                  onClick={() =>
-                    setNewComicForm((current) => ({
-                      ...current,
-                      template,
-                    }))
-                  }
-                  className={`py-2.5 rounded-lg text-xs font-medium border transition-colors ${
-                    newComicForm.template === template
-                      ? "bg-cv-accent border-cv-accent text-white"
-                      : "border-cv-border text-cv-muted hover:border-cv-accent"
-                  }`}
-                >
-                  {template}
-                </button>
-              ))}
+              {TEMPLATES.map(
+                (template) => (
+                  <button
+                    type="button"
+                    key={template}
+                    onClick={() =>
+                      setNewComicForm(
+                        (current) => ({
+                          ...current,
+                          template,
+                        })
+                      )
+                    }
+                    className={`py-2.5 rounded-lg text-xs font-medium border transition-colors ${
+                      newComicForm.template ===
+                      template
+                        ? "bg-cv-accent border-cv-accent text-white"
+                        : "border-cv-border text-cv-muted hover:border-cv-accent"
+                    }`}
+                  >
+                    {template}
+                  </button>
+                )
+              )}
             </div>
           </div>
 
           {/* ERROR */}
-          {(pageError || createComicMutation.error) && (
+
+          {(pageError ||
+            createComicMutation.error) && (
             <div className="flex gap-2 items-start text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
               <AlertCircle className="w-5 h-5 shrink-0" />
 
               <div>
                 {pageError ||
-                  (createComicMutation.error as any)?.message ||
+                  (
+                    createComicMutation.error as ApiError
+                  )?.message ||
                   "Could not create comic."}
               </div>
             </div>
           )}
 
-          {/* CREATE BUTTON */}
+          {/* CREATE */}
+
           <button
             type="button"
             onClick={() => {
               setPageError("");
 
-              const title = newComicForm.title.trim();
+              const title =
+                newComicForm.title.trim();
 
               if (!title) {
-                setPageError("Please enter a comic title.");
+                setPageError(
+                  "Please enter a comic title."
+                );
                 return;
               }
 
               createComicMutation.mutate({
                 title,
-                style: newComicForm.style,
-                template: newComicForm.template,
+                style:
+                  newComicForm.style,
+                template:
+                  newComicForm.template,
               });
             }}
             disabled={
@@ -1177,13 +1575,16 @@ export default function Editor({
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="w-10 h-10 animate-spin text-cv-accent" />
-        <p className="text-cv-muted">Loading comic...</p>
+
+        <p className="text-cv-muted">
+          Loading comic...
+        </p>
       </div>
     );
   }
 
   /* ---------------------------------------------------------------------- */
-  /* COMIC ERROR                                                            */
+  /* ERROR                                                                  */
   /* ---------------------------------------------------------------------- */
 
   if (isError || !comic) {
@@ -1197,12 +1598,16 @@ export default function Editor({
           </h2>
 
           <p className="text-sm text-red-400 mb-5">
-            {(comicQueryError as any)?.message ||
+            {(comicQueryError as any)
+              ?.message ||
               "The server could not load this comic."}
           </p>
 
           <button
-            onClick={() => nav("/dashboard")}
+            type="button"
+            onClick={() =>
+              nav("/dashboard")
+            }
             className="px-5 py-2.5 rounded-xl bg-cv-accent text-white"
           >
             Back to Dashboard
@@ -1213,15 +1618,19 @@ export default function Editor({
   }
 
   /* ---------------------------------------------------------------------- */
-  /* PANELS                                                                 */
+  /* SORT PANELS                                                            */
   /* ---------------------------------------------------------------------- */
 
-  const panels = [...(comic.panels ?? [])].sort(
-    (a, b) => a.order - b.order
+  const panels = [
+    ...(comic.panels ?? []),
+  ].sort(
+    (a, b) =>
+      Number(a.order) -
+      Number(b.order)
   );
 
   /* ---------------------------------------------------------------------- */
-  /* PANEL UPDATE                                                           */
+  /* UPDATE PANEL                                                           */
   /* ---------------------------------------------------------------------- */
 
   const handleUpdatePanel = async (
@@ -1235,204 +1644,425 @@ export default function Editor({
   };
 
   /* ---------------------------------------------------------------------- */
-  /* PANEL MOVE                                                             */
+  /* DELETE PANEL                                                           */
+  /* ---------------------------------------------------------------------- */
+
+  const handleDeletePanel = async (
+    id: number
+  ) => {
+    await deletePanelMutation.mutateAsync(
+      id
+    );
+  };
+
+  /* ---------------------------------------------------------------------- */
+  /* MOVE PANEL                                                             */
   /* ---------------------------------------------------------------------- */
 
   const handleMovePanel = async (
     id: number,
     direction: "up" | "down"
   ) => {
-    const index = panels.findIndex((p) => p.id === id);
+    const index =
+      panels.findIndex(
+        (panel) => panel.id === id
+      );
 
-    if (index < 0) return;
-
-    const swapIndex =
-      direction === "up" ? index - 1 : index + 1;
-
-    if (swapIndex < 0 || swapIndex >= panels.length) {
+    if (index === -1) {
       return;
     }
 
-    const current = panels[index];
-    const swap = panels[swapIndex];
+    const swapIndex =
+      direction === "up"
+        ? index - 1
+        : index + 1;
 
-    await Promise.all([
-      updatePanelMutation.mutateAsync({
-        id: current.id,
-        data: {
-          order: swap.order,
-        },
-      }),
-      updatePanelMutation.mutateAsync({
-        id: swap.id,
-        data: {
-          order: current.order,
-        },
-      }),
-    ]);
+    if (
+      swapIndex < 0 ||
+      swapIndex >= panels.length
+    ) {
+      return;
+    }
 
-    await qc.invalidateQueries({
-      queryKey: ["comic-edit", effectiveId],
-    });
+    const current =
+      panels[index];
+
+    const swap =
+      panels[swapIndex];
+
+    try {
+      setPageError("");
+
+      /*
+       * Use temporary order to prevent
+       * duplicate order values during swap.
+       */
+      const temporaryOrder =
+        -Date.now();
+
+      await updatePanelMutation.mutateAsync(
+        {
+          id: current.id,
+          data: {
+            order: temporaryOrder,
+          },
+        }
+      );
+
+      await updatePanelMutation.mutateAsync(
+        {
+          id: swap.id,
+          data: {
+            order: current.order,
+          },
+        }
+      );
+
+      await updatePanelMutation.mutateAsync(
+        {
+          id: current.id,
+          data: {
+            order: swap.order,
+          },
+        }
+      );
+
+      await qc.invalidateQueries({
+        queryKey: [
+          "comic-edit",
+          effectiveId,
+        ],
+      });
+    } catch (error: any) {
+      setPageError(
+        error?.message ||
+          "Failed to move panel."
+      );
+    }
   };
 
   /* ---------------------------------------------------------------------- */
-  /* IMAGE GENERATION                                                       */
+  /* GENERATE IMAGE                                                         */
   /* ---------------------------------------------------------------------- */
 
-  const handleGenerateImage = async (panel: Panel) => {
-    if (!panel.imagePrompt?.trim()) {
-      throw new Error("Please enter an image prompt.");
+  const handleGenerateImage = async (
+    panel: Panel
+  ) => {
+    const cleanPrompt =
+      panel.imagePrompt?.trim();
+
+    if (!cleanPrompt) {
+      throw new Error(
+        "Please enter an image prompt."
+      );
     }
 
-    const selectedIds = getCharacterIds(panel);
+    const selectedIds =
+      getCharacterIds(panel);
 
-    const selectedCharacters = characters.filter((character) =>
-      selectedIds.includes(character.id)
-    );
+    const selectedCharacters =
+      characters.filter(
+        (character) =>
+          selectedIds.includes(
+            character.id
+          )
+      );
 
     const characterContext =
       selectedCharacters.length > 0
         ? ` Characters: ${selectedCharacters
-            .map((c) => c.name)
+            .map(
+              (character) =>
+                character.name
+            )
             .join(", ")}.`
         : "";
 
     const prompt =
-      `${panel.imagePrompt.trim()}.` +
+      `${cleanPrompt}.` +
       characterContext;
 
-    console.log("Generating image with:", {
-      prompt,
-      style: comic.style,
-      panelDescription: panel.caption,
-    });
-
-    const res = await authFetch(`${apiBase}/ai/generate-image`, {
-      method: "POST",
-      body: JSON.stringify({
+    console.log(
+      "Generating image:",
+      {
         prompt,
         style: comic.style,
-        panelDescription: panel.caption || panel.imagePrompt,
-      }),
-    });
+        panelDescription:
+          panel.caption ||
+          cleanPrompt,
+      }
+    );
 
-    const data = await readApiResponse(res);
+    const res = await authFetch(
+      `${apiBase}/ai/generate-image`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          prompt,
+          style: comic.style,
+          panelDescription:
+            panel.caption ||
+            cleanPrompt,
+        }),
+      }
+    );
 
-    if (!data?.imageData) {
+    const data =
+      await readApiResponse(res);
+
+    const imageData =
+      data?.imageData ??
+      data?.data?.imageData ??
+      data?.image ??
+      data?.data?.image;
+
+    if (!imageData) {
       throw new Error(
         "Image service returned no image data."
       );
     }
 
-    await updatePanelMutation.mutateAsync({
-      id: panel.id,
-      data: {
-        imageData: data.imageData,
-      },
-    });
-
-    await qc.invalidateQueries({
-      queryKey: ["comic-edit", effectiveId],
-    });
-  };
-
-  /* ---------------------------------------------------------------------- */
-  /* DIALOGUE GENERATION                                                    */
-  /* ---------------------------------------------------------------------- */
-
-  const handleGenerateDialogue = async (panel: Panel) => {
-    const selectedIds = getCharacterIds(panel);
-
-    const selectedCharacters = characters.filter((character) =>
-      selectedIds.includes(character.id)
-    );
-
-    const res = await authFetch(
-      `${apiBase}/ai/generate-dialogue`,
+    await updatePanelMutation.mutateAsync(
       {
-        method: "POST",
-        body: JSON.stringify({
-          panelDescription:
-            panel.imagePrompt ||
-            panel.caption ||
-            "comic scene",
-
-          characterNames: selectedCharacters.map(
-            (character) => character.name
-          ),
-
-          style: comic.style,
-        }),
+        id: panel.id,
+        data: {
+          imageData,
+        },
       }
     );
 
-    const data = await readApiResponse(res);
-
-    await updatePanelMutation.mutateAsync({
-      id: panel.id,
-      data: {
-        dialogue: data?.dialogue ?? "",
-        caption: data?.caption ?? "",
-      },
-    });
-
     await qc.invalidateQueries({
-      queryKey: ["comic-edit", effectiveId],
+      queryKey: [
+        "comic-edit",
+        effectiveId,
+      ],
     });
   };
+
+  /* ---------------------------------------------------------------------- */
+  /* GENERATE DIALOGUE                                                      */
+  /* ---------------------------------------------------------------------- */
+
+  const handleGenerateDialogue =
+    async (panel: Panel) => {
+      const selectedIds =
+        getCharacterIds(panel);
+
+      const selectedCharacters =
+        characters.filter(
+          (character) =>
+            selectedIds.includes(
+              character.id
+            )
+        );
+
+      const res = await authFetch(
+        `${apiBase}/ai/generate-dialogue`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            panelDescription:
+              panel.imagePrompt ||
+              panel.caption ||
+              "comic scene",
+
+            characterNames:
+              selectedCharacters.map(
+                (character) =>
+                  character.name
+              ),
+
+            style: comic.style,
+          }),
+        }
+      );
+
+      const data =
+        await readApiResponse(res);
+
+      const dialogue =
+        data?.dialogue ??
+        data?.data?.dialogue ??
+        "";
+
+      const caption =
+        data?.caption ??
+        data?.data?.caption ??
+        "";
+
+      await updatePanelMutation.mutateAsync(
+        {
+          id: panel.id,
+          data: {
+            dialogue,
+            caption,
+          },
+        }
+      );
+
+      await qc.invalidateQueries({
+        queryKey: [
+          "comic-edit",
+          effectiveId,
+        ],
+      });
+    };
 
   /* ---------------------------------------------------------------------- */
   /* APPLY AI STORY                                                         */
   /* ---------------------------------------------------------------------- */
 
-  const handleApplyStory = async (story: any) => {
-    if (!story?.panels || !Array.isArray(story.panels)) {
-      throw new Error("AI returned an invalid story.");
-    }
+  const handleApplyStory =
+    async (story: any) => {
+      if (
+        !story?.panels ||
+        !Array.isArray(story.panels)
+      ) {
+        throw new Error(
+          "AI returned an invalid story."
+        );
+      }
 
-    await updateComicMutation.mutateAsync({
-      title: story.title || comic.title,
-      description: story.description || "",
-    });
+      const cleanTitle =
+        String(
+          story.title ||
+            comic.title ||
+            ""
+        ).trim();
 
-    /*
-     * Add generated panels one by one.
-     */
-    for (let index = 0; index < story.panels.length; index++) {
-      const panel = story.panels[index];
+      const description =
+        String(
+          story.description || ""
+        );
 
-      await createPanelMutation.mutateAsync({
-        order: Number(panel.order ?? index + 1),
-        caption: panel.caption ?? "",
-        dialogue: panel.dialogue ?? "",
-        imagePrompt: panel.imagePrompt ?? "",
-        characterIds: [],
+      /* Update comic metadata */
+
+      await updateComicMutation.mutateAsync(
+        {
+          title:
+            cleanTitle ||
+            comic.title,
+          description,
+        }
+      );
+
+      /*
+       * Create generated panels.
+       *
+       * Continue from the current number of panels
+       * so existing panels don't receive duplicate
+       * order values.
+       */
+      const startingOrder =
+        panels.length;
+
+      for (
+        let index = 0;
+        index < story.panels.length;
+        index++
+      ) {
+        const panel =
+          story.panels[index];
+
+        await createPanelMutation.mutateAsync(
+          {
+            order:
+              startingOrder +
+              index +
+              1,
+
+            caption:
+              panel.caption ?? "",
+
+            dialogue:
+              panel.dialogue ?? "",
+
+            imagePrompt:
+              panel.imagePrompt ?? "",
+
+            characterIds: [],
+          }
+        );
+      }
+
+      setShowStoryModal(false);
+
+      await qc.invalidateQueries({
+        queryKey: [
+          "comic-edit",
+          effectiveId,
+        ],
       });
+
+      setPageError("");
+    };
+
+  /* ---------------------------------------------------------------------- */
+  /* SAVE TITLE                                                             */
+  /* ---------------------------------------------------------------------- */
+
+  const saveTitle = async () => {
+    const title =
+      localTitle.trim();
+
+    if (!title) {
+      setLocalTitle(comic.title);
+      return;
     }
 
-    setShowStoryModal(false);
+    if (title === comic.title) {
+      return;
+    }
 
-    await qc.invalidateQueries({
-      queryKey: ["comic-edit", effectiveId],
+    try {
+      setPageError("");
+
+      await updateComicMutation.mutateAsync(
+        {
+          title,
+        }
+      );
+    } catch {
+      setLocalTitle(comic.title);
+    }
+  };
+
+  /* ---------------------------------------------------------------------- */
+  /* ADD PANEL                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  const addPanel = () => {
+    createPanelMutation.mutate({
+      order:
+        panels.length + 1,
+      characterIds: [],
+      dialogue: "",
+      caption: "",
+      imagePrompt: "",
     });
   };
 
   /* ---------------------------------------------------------------------- */
-  /* RENDER EDITOR                                                          */
+  /* RENDER                                                                 */
   /* ---------------------------------------------------------------------- */
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* PAGE ERROR */}
+
       {pageError && (
         <div className="mb-5 flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
           <AlertCircle className="w-5 h-5 shrink-0" />
 
-          <div className="flex-1">{pageError}</div>
+          <div className="flex-1">
+            {pageError}
+          </div>
 
           <button
-            onClick={() => setPageError("")}
+            type="button"
+            onClick={() =>
+              setPageError("")
+            }
             className="text-red-300 hover:text-white"
           >
             ×
@@ -1441,54 +2071,69 @@ export default function Editor({
       )}
 
       {/* CHARACTER WARNING */}
+
       {charactersError && (
         <div className="mb-5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-sm text-yellow-300">
-          Characters could not be loaded. You can still edit the comic.
+          Characters could not be loaded.
+          You can still edit the comic.
         </div>
       )}
 
-      {/* HEADER */}
+      {/* ---------------------------------------------------------------- */}
+      {/* HEADER                                                           */}
+      {/* ---------------------------------------------------------------- */}
+
       <div className="flex items-center gap-3 mb-6 flex-wrap">
+        {/* BACK */}
+
         <button
-          onClick={() => nav("/dashboard")}
+          type="button"
+          onClick={() =>
+            nav("/dashboard")
+          }
           className="text-cv-muted hover:text-cv-text transition-colors"
           title="Back to dashboard"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
 
+        {/* TITLE */}
+
         <div className="flex-1 min-w-[200px]">
           <input
+            type="text"
             className="bg-transparent text-2xl font-bold text-cv-text focus:outline-none border-b border-transparent focus:border-cv-accent pb-1 w-full"
             style={{
-              fontFamily: "var(--font-cv-display)",
+              fontFamily:
+                "var(--font-cv-display)",
               letterSpacing: "0.04em",
             }}
-            value={comic.title}
-            onChange={(e) => {
-              /*
-               * Optimistic local title update isn't necessary here.
-               * Save on blur.
-               */
-              const value = e.target.value;
+            value={localTitle}
+            onChange={(e) =>
+              setLocalTitle(
+                e.target.value
+              )
+            }
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur();
+              }
 
-              /*
-               * Keep browser input responsive.
-               */
-            }}
-            onBlur={(e) => {
-              const title = e.target.value.trim();
+              if (e.key === "Escape") {
+                setLocalTitle(
+                  comic.title
+                );
 
-              if (title && title !== comic.title) {
-                updateComicMutation.mutate({
-                  title,
-                });
+                e.currentTarget.blur();
               }
             }}
           />
 
           <div className="flex items-center gap-2 mt-1">
-            <span className="style-tag">{comic.style}</span>
+            <span className="style-tag">
+              {comic.style}
+            </span>
 
             <span className="text-xs text-cv-muted">
               {comic.template}
@@ -1503,10 +2148,16 @@ export default function Editor({
           </div>
         </div>
 
+        {/* ACTIONS */}
+
         <div className="flex items-center gap-2 flex-wrap">
           {/* AI STORY */}
+
           <button
-            onClick={() => setShowStoryModal(true)}
+            type="button"
+            onClick={() =>
+              setShowStoryModal(true)
+            }
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cv-accent/40 text-cv-accent-light text-sm hover:bg-cv-accent/10"
           >
             <Sparkles className="w-4 h-4" />
@@ -1514,14 +2165,13 @@ export default function Editor({
           </button>
 
           {/* ADD PANEL */}
+
           <button
-            onClick={() =>
-              createPanelMutation.mutate({
-                order: panels.length + 1,
-                characterIds: [],
-              })
+            type="button"
+            onClick={addPanel}
+            disabled={
+              createPanelMutation.isPending
             }
-            disabled={createPanelMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cv-surface border border-cv-border text-cv-text text-sm hover:bg-cv-card disabled:opacity-50"
           >
             {createPanelMutation.isPending ? (
@@ -1534,11 +2184,17 @@ export default function Editor({
           </button>
 
           {/* PUBLISH */}
+
           <button
+            type="button"
             onClick={() =>
-              publishMutation.mutate(!comic.published)
+              publishMutation.mutate(
+                !comic.published
+              )
             }
-            disabled={publishMutation.isPending}
+            disabled={
+              publishMutation.isPending
+            }
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${
               comic.published
                 ? "bg-green-500/20 text-green-400 border border-green-500/30"
@@ -1562,18 +2218,25 @@ export default function Editor({
         </div>
       </div>
 
-      {/* PANELS */}
+      {/* ---------------------------------------------------------------- */}
+      {/* PANELS                                                           */}
+      {/* ---------------------------------------------------------------- */}
+
       {panels.length === 0 ? (
         <div className="bg-cv-card border border-cv-border border-dashed rounded-2xl py-20 text-center">
           <BookOpen className="w-12 h-12 text-cv-muted mx-auto mb-3" />
 
           <p className="text-cv-muted mb-5">
-            No panels yet. Generate a story or add a panel manually.
+            No panels yet. Generate a story
+            or add a panel manually.
           </p>
 
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <button
-              onClick={() => setShowStoryModal(true)}
+              type="button"
+              onClick={() =>
+                setShowStoryModal(true)
+              }
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cv-accent text-white font-semibold hover:bg-cv-accent-light"
             >
               <Sparkles className="w-4 h-4" />
@@ -1581,48 +2244,62 @@ export default function Editor({
             </button>
 
             <button
-              onClick={() =>
-                createPanelMutation.mutate({
-                  order: 1,
-                  characterIds: [],
-                })
+              type="button"
+              onClick={addPanel}
+              disabled={
+                createPanelMutation.isPending
               }
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-cv-border text-cv-text"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-cv-border text-cv-text disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" />
+              {createPanelMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+
               Add Panel
             </button>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {panels.map((panel, index) => (
-            <PanelCard
-              key={panel.id}
-              panel={panel}
-              index={index}
-              total={panels.length}
-              comic={comic}
-              characters={characters}
-              onUpdate={handleUpdatePanel}
-              onDelete={async (id) => {
-                await deletePanelMutation.mutateAsync(id);
-              }}
-              onMove={handleMovePanel}
-              onGenerateImage={handleGenerateImage}
-              onGenerateDialogue={handleGenerateDialogue}
-            />
-          ))}
+          {panels.map(
+            (panel, index) => (
+              <PanelCard
+                key={panel.id}
+                panel={panel}
+                index={index}
+                total={panels.length}
+                characters={
+                  characters
+                }
+                onUpdate={
+                  handleUpdatePanel
+                }
+                onDelete={
+                  handleDeletePanel
+                }
+                onMove={
+                  handleMovePanel
+                }
+                onGenerateImage={
+                  handleGenerateImage
+                }
+                onGenerateDialogue={
+                  handleGenerateDialogue
+                }
+              />
+            )
+          )}
 
           {/* ADD PANEL CARD */}
+
           <button
-            onClick={() =>
-              createPanelMutation.mutate({
-                order: panels.length + 1,
-                characterIds: [],
-              })
+            type="button"
+            onClick={addPanel}
+            disabled={
+              createPanelMutation.isPending
             }
-            disabled={createPanelMutation.isPending}
             className="bg-cv-card border border-cv-border border-dashed rounded-xl min-h-[250px] flex flex-col items-center justify-center gap-2 text-cv-muted hover:text-cv-text hover:border-cv-accent/50 transition-colors disabled:opacity-50"
           >
             {createPanelMutation.isPending ? (
@@ -1631,18 +2308,27 @@ export default function Editor({
               <Plus className="w-8 h-8" />
             )}
 
-            <span className="text-sm">Add Panel</span>
+            <span className="text-sm">
+              Add Panel
+            </span>
           </button>
         </div>
       )}
 
-      {/* AI STORY MODAL */}
+      {/* ---------------------------------------------------------------- */}
+      {/* AI STORY MODAL                                                   */}
+      {/* ---------------------------------------------------------------- */}
+
       {showStoryModal && (
         <StoryModal
           comic={comic}
           characters={characters}
-          onApply={handleApplyStory}
-          onClose={() => setShowStoryModal(false)}
+          onApply={
+            handleApplyStory
+          }
+          onClose={() =>
+            setShowStoryModal(false)
+          }
         />
       )}
     </div>
