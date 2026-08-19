@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pnpm --filter @workspace/comicverse build",
+  "buildCommand": "pnpm --filter @workspace/api-server build && pnpm --filter @workspace/comicverse build",
   "outputDirectory": "artifacts/comicverse/dist/public",
   "rewrites": [
     {
