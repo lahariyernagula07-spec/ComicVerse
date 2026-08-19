@@ -1,17 +1,5 @@
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load root .env before importing app/routes
-dotenv.config({
-  path: path.resolve(__dirname, "../../../.env"),
-});
-
-const { default: app } = await import("./app");
-const { logger } = await import("./lib/logger");
+import app from "./app";
+import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"] || "3000";
 

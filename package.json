@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "preinstall": "node -e \"const fs=require('fs'); for (const f of ['package-lock.json','yarn.lock']) { try { fs.rmSync(f,{force:true}); } catch {} }\"",
-    "build": "pnpm run typecheck && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/comicverse run build",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
@@ -13,14 +13,10 @@
     "@replit/connectors-sdk": "^0.4.1"
   },
   "devDependencies": {
-    "@esbuild/win32-x64": "0.27.3",
-    "@rollup/rollup-win32-x64-msvc": "4.62.2",
-    "@tailwindcss/oxide": "^4.3.3",
-    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.3",
-    "dotenv": "^17.4.2",
-    "lightningcss": "1.32.0",
+    "@rollup/rollup-win32-x64-msvc": "4.62.4",
     "lightningcss-win32-x64-msvc": "1.32.0",
     "prettier": "^3.9.4",
     "typescript": "~5.9.3"
-  }
+  },
+  "packageManager": "pnpm@10.12.4"
 }

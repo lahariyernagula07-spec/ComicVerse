@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm --filter @workspace/comicverse build",
+  "outputDirectory": "artifacts/comicverse/dist/public",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

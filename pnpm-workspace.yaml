@@ -1,18 +1,18 @@
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
-  - '@replit/*'
-  - stripe-replit-sync
+- '@replit/*'
+- stripe-replit-sync
 packages:
-  - artifacts/*
-  - lib/*
-  - lib/integrations/*
-  - scripts
+- artifacts/*
+- lib/*
+- lib/integrations/*
+- scripts
 autoInstallPeers: false
 onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
-  - msw
-  - unrs-resolver
+- '@swc/core'
+- esbuild
+- msw
+- unrs-resolver
 overrides:
   esbuild>@esbuild/darwin-arm64: '-'
   esbuild>@esbuild/darwin-x64: '-'
@@ -95,8 +95,3 @@ overrides:
   '@expo/ngrok-bin>@expo/ngrok-bin-win32-x64': '-'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   esbuild: 0.27.3
-allowBuilds:
-  '@clerk/shared': false
-  '@google/genai': false
-  esbuild: false
-  protobufjs: false
