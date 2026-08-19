@@ -2,17 +2,10 @@
   "version": 2,
   "buildCommand": "pnpm --filter @workspace/api-server build && pnpm --filter @workspace/comicverse build",
   "outputDirectory": "artifacts/comicverse/dist/public",
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": [
-        "artifacts/api-server/dist/**"
-      ]
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index"
     },
     {
       "source": "/(.*)",
